@@ -5,12 +5,8 @@
 #include "driver/i2c.h"
 #include <esp_err.h>
 
-extern uint8_t MAX_SDA_PIN;
-extern uint8_t MAX_SCL_PIN;
-extern uint8_t MAX_I2C_PORT;
 
-
-#define MAX77960_I2C_ADDR   0xD2
+#define MAX77960_I2C_ADDR   0x69
 
 /****************************************************************************
  *                    MAX77960/MAX77961 Register Map                        *
@@ -200,8 +196,6 @@ extern uint8_t MAX_I2C_PORT;
 #define	CHG_CNFG_06_REG		0x1C
 #define CHGPROT				(2)
 #define CHGPROT_MASK		0x03 << CHGPROT
-#define CHGPROT_LOCK		0x00
-#define CHGPROT_UNLOCK		0x03
 #define WDTCLR				(0)
 #define WDTCLR_MASK			0x03 << WDTCLR
 #define WDTCLR_CLEAR		0x03	    // Writing 0x03 to WDTCLR clears the
@@ -245,64 +239,86 @@ extern uint8_t MAX_I2C_PORT;
 /*
  * Charger details 0
  */
+/* Black Magic to obtain the enum and the strings to print */
+/* NOTE: this macros works only if enum index greater or equal to 0 */
 
-typedef enum {
-	MAX77960_CHGIN_DTLS_LESS_UVLO   = 0x0,
-    MAX77960_CHGIN_DTLS_MORE_OVLO   = 0x2,
-    MAX77960_CHGIN_DTLS_VALID       = 0x3
-} MAX77960_CHGIN_DTLS_t;
+/* CHGIN DTLS */
+#define CHGIN_DTLS_ENUM C(MAX77960_CHGIN_DTLS_LESS_UVLO, 0x0)\
+                        C(MAX77960_CHGIN_DTLS_MORE_OVLO, 0x2)\
+                        C(MAX77960_CHGIN_DTLS_VALID, 0x3)
+#define C(k, v) k = v,
+typedef enum { CHGIN_DTLS_ENUM } MAX77960_CHGIN_DTLS_t;
+#undef C   
+extern const char * const MAX77960_CHGIN_DTLS_name[];
+/* End of CHGIN DTLS */
 
-typedef enum {
-	MAX77960_OTG_DTLS_LESS_UVLO             = 0x0,
-    MAX77960_OTG_DTLS_CURR_LIMIT            = 0x1,
-    MAX77960_OTG_DTLS_MORE_OVLO             = 0x2,
-    MAX77960_OTG_DTLS_DISABLED_OR_VALID     = 0x3
-} MAX77960_OTG_DTLS_t;
+/* OTG DTLS */
+#define OTG_DTLS_ENUM C(MAX77960_OTG_DTLS_LESS_UVLO, 0x0)\
+                        C(MAX77960_OTG_DTLS_CURR_LIMIT, 0x1)\
+                        C(MAX77960_OTG_DTLS_MORE_OVLO, 0x2)\
+                        C(MAX77960_OTG_DTLS_DISABLED_OR_VALID, 0x3)
+#define C(k, v) k = v,
+typedef enum { OTG_DTLS_ENUM } MAX77960_OTG_DTLS_t;
+#undef C   
+extern const char * const MAX77960_OTG_DTLS_name[];
+/* End of OTG DTLS */
 
 /*
  * Charger details 1
  */
 
-typedef enum {
-	MAX77960_BAT_DTLS_BAT_REMOVED   = 0x00,
-    MAX77960_BAT_DTLS_BAT_PRECHARGE = 0x01,
-    MAX77960_BAT_DTLS_BAT_TOO_TIME  = 0x02,
-    MAX77960_BAT_DTLS_BAT_OK        = 0x03,
-    MAX77960_BAT_DTLS_BAT_LOW       = 0x04,
-    MAX77960_BAT_DTLS_BAT_OVERVOLT  = 0x05,
-    MAX77960_BAT_DTLS_BAT_OVERCURR  = 0x06,
-    MAX77960_BAT_DTLS_BAT_UNKNOWN   = 0x07
-} MAX77960_BAT_DTLS_t;
+/* BAT DTLS */
+#define BAT_DTLS_ENUM C(MAX77960_BAT_DTLS_BAT_REMOVED, 0x0)\
+                        C(MAX77960_BAT_DTLS_BAT_PRECHARGE, 0x1)\
+                        C(MAX77960_BAT_DTLS_BAT_TOO_TIME, 0x2)\
+                        C(MAX77960_BAT_DTLS_BAT_OK, 0x3)\
+                        C(MAX77960_BAT_DTLS_BAT_LOW, 0x4)\
+                        C(MAX77960_BAT_DTLS_BAT_OVERVOLT, 0x5)\
+                        C(MAX77960_BAT_DTLS_BAT_OVERCURR, 0x6)\
+                        C(MAX77960_BAT_DTLS_BAT_UNKNOWN, 0x7)
+#define C(k, v) k = v,
+typedef enum { BAT_DTLS_ENUM } MAX77960_BAT_DTLS_t;
+#undef C    
+extern const char * const MAX77960_BAT_DTLS_name[];
+/* End of BAT DTLS */
 
-typedef enum {
-	MAX77960_CHG_DTLS_PRE_TRICKLE               = 0x00,
-    MAX77960_CHG_DTLS_FAST_CHARGE_CC            = 0x01,
-    MAX77960_CHG_DTLS_FAST_CHARGE_CV            = 0x02,
-    MAX77960_CHG_DTLS_TOP_OFF                   = 0x03,
-    MAX77960_CHG_DTLS_DONE                      = 0x04,
-    MAX77960_CHG_DTLS_OFF_R_INVALID             = 0x05,
-    MAX77960_CHG_DTLS_TIMER_FAULT               = 0x06,
-    MAX77960_CHG_DTLS_QBAT_DISABLED             = 0x07,
-    MAX77960_CHG_DTLS_IN_INVALID_CHG_DISABLED   = 0x08,
-    MAX77960_CHG_DTLS_OVERTEMP                  = 0x0A,
-    MAX77960_CHG_DTLS_WDT_EXPIRED               = 0x0B,
-    MAX77960_CHG_DTLS_JEITA_CONDITION           = 0x0C,
-    MAX77960_CHG_DTLS_BAT_REMOVED               = 0x0D
-} MAX77960_CHG_DTLS_t;
+/* CHG DTLS */
+#define CHG_DTLS_ENUM C(MAX77960_CHG_DTLS_PRE_TRICKLE, 0x0)\
+                        C(MAX77960_CHG_DTLS_FAST_CHARGE_CC, 0x1)\
+                        C(MAX77960_CHG_DTLS_FAST_CHARGE_CV, 0x2)\
+                        C(MAX77960_CHG_DTLS_TOP_OFF, 0x3)\
+                        C(MAX77960_CHG_DTLS_DONE, 0x4)\
+                        C(MAX77960_CHG_DTLS_OFF_OR_INVALID, 0x5)\
+                        C(MAX77960_CHG_DTLS_TIMER_FAULT, 0x6)\
+                        C(MAX77960_CHG_DTLS_QBAT_DISABLED, 0x7)\
+                        C(MAX77960_CHG_DTLS_IN_INVALID_CHG_DISABLED, 0x8)\
+                        C(MAX77960_CHG_DTLS_OVERTEMP, 0xA)\
+                        C(MAX77960_CHG_DTLS_WDT_EXPIRED, 0xB)\
+                        C(MAX77960_CHG_DTLS_JEITA_CONDITION, 0xC)\
+                        C(MAX77960_CHG_DTLS_BAT_REMOVED, 0xD)
+#define C(k, v) k = v,
+typedef enum { CHG_DTLS_ENUM } MAX77960_CHG_DTLS_t;
+#undef C
+extern const char * const MAX77960_CHG_DTLS_name[];
+/* End of CHG DTLS */
 
 /*
  * Charger details 2
  */
 
-typedef enum {
-	MAX77960_THM_DTLS_TOO_LOW       = 0x00,
-    MAX77960_THM_DTLS_LOW           = 0x01,
-    MAX77960_THM_DTLS_NORMAL        = 0x02,
-    MAX77960_THM_DTLS_WARM          = 0x03,
-    MAX77960_THM_DTLS_TOO_HOT       = 0x04,
-    MAX77960_THM_DTLS_REMOVED       = 0x05,
-    MAX77960_THM_DTLS_THM_DISABLED  = 0x06
-} MAX77960_THM_DTLS_t;
+/* THM DTLS */
+#define THM_DTLS_ENUM C(MAX77960_THM_DTLS_TOO_LOW, 0x0)\
+                        C(MAX77960_THM_DTLS_LOW, 0x1)\
+                        C(MAX77960_THM_DTLS_NORMAL, 0x2)\
+                        C(MAX77960_THM_DTLS_WARM, 0x3)\
+                        C(MAX77960_THM_DTLS_TOO_HOT, 0x4)\
+                        C(MAX77960_THM_DTLS_REMOVED, 0x5)\
+                        C(MAX77960_THM_DTLS_THM_DISABLED, 0x6)
+#define C(k, v) k = v,
+typedef enum { THM_DTLS_ENUM } MAX77960_THM_DTLS_t;
+#undef C   
+extern const char * const MAX77960_THM_DTLS_name[];
+/* End of THM DTLS */
 
 typedef enum {
 	MAX77960_FSW_DTLS_600_KHZ       = 0x0,
@@ -317,18 +333,23 @@ typedef enum {
 /*
  * Charger configuration 0
  */
-typedef enum {
-	MAX77960_MODE_CHG_OFF_OTG_OFF_DCDC_OFF_0 = 0x0,
-	MAX77960_MODE_CHG_OFF_OTG_OFF_DCDC_OFF_1 = 0x1, //same as 0x0
-	MAX77960_MODE_CHG_OFF_OTG_OFF_DCDC_OFF_2 = 0x2, //same as 0x0
-	MAX77960_MODE_CHG_OFF_OTG_OFF_DCDC_OFF_3 = 0x3, //same as 0x0
-	MAX77960_MODE_CHG_OFF_OTG_OFF_DCDC_ON = 0x4,
-	MAX77960_MODE_CHG_ON_OTG_OFF_DCDC_ON_0 = 0x5,
-	MAX77960_MODE_CHG_ON_OTG_OFF_DCDC_ON_1 = 0x6,   //same as 0x5
-	MAX77960_MODE_CHG_ON_OTG_OFF_DCDC_ON_2 = 0x7,   //same as 0x5
-	MAX77960_MODE_CHG_OFF_OTG_ON_DCDC_OFF = 0xA
-} MAX77960_CHG_MODE_t;
 
+/* CHG MODE */
+#define CHG_MODE_ENUM C(MAX77960_MODE_CHG_OFF_OTG_OFF_DCDC_OFF_0, 0x0)\
+                        C(MAX77960_MODE_CHG_OFF_OTG_OFF_DCDC_OFF_1, 0x1)\
+                        C(MAX77960_MODE_CHG_OFF_OTG_OFF_DCDC_OFF_2, 0x2)\
+                        C(MAX77960_MODE_CHG_OFF_OTG_OFF_DCDC_OFF_3, 0x3)\
+                        C(MAX77960_MODE_CHG_OFF_OTG_OFF_DCDC_ON, 0x4)\
+                        C(MAX77960_MODE_CHG_ON_OTG_OFF_DCDC_ON_0, 0x5)\
+                        C(MAX77960_MODE_CHG_ON_OTG_OFF_DCDC_ON_1, 0x6)\
+                        C(MAX77960_MODE_CHG_ON_OTG_OFF_DCDC_ON_2, 0x7)\
+                        C(MAX77960_MODE_CHG_OFF_OTG_ON_DCDC_OFF, 0xA)
+#define C(k, v) k = v,
+typedef enum { CHG_MODE_ENUM } MAX77960_CHG_MODE_t;
+#undef C
+extern const char * const MAX77960_CHG_MODE_name[];
+
+/* End of CHG MODE */
 
 /*
  * Charger configuration 1
@@ -866,14 +887,17 @@ typedef enum{
  */
 typedef struct{
     MAX77960_CHGIN_ILIM_t INLIM;
-	MAX77960_CHG_CHGCC_t ISET;
+    MAX77960_INLIM_CLK_t INLIM_CLK_;    //input current soft start period between increments of 25mA in uS
+	MAX77960_OTG_ILIM_t OTG_ILIM_;      //OTG current limit
+    MAX77960_CHG_CHGCC_t ISET;
     MAX77960_TO_ITH_t ITO;
 	MAX77960_CHG_CV_PRM_2S_t VSET_2S;   //VSET for 2S mode
     MAX77960_CHG_CV_PRM_3S_t VSET_3S;   //VSET for 3S mode
     MAX77960_ITRICKLE_t I_TRICKLE;
     MAX77960_TO_TIME_t  TO_timer;
     MAX77960_FCHGTIME_t FC_timer;
-    MAX77960_CHG_RSTRT_t CHG_RST;     // restart charging threshold below VSET
+    MAX77960_CHG_RSTRT_t CHG_RST;       // restart charging threshold below VSET
+    bool JEITA_enabled;                 //JEITA function enabled = 1, disabled = 0
 } MAX77960_CHG_CONFIG_t;
 
 /**
@@ -881,62 +905,92 @@ typedef struct{
  */
 typedef struct{
     MAX77960_B2SOVRC_t B2SOVRC_;        //battery to sys overcurrent threshold
-    MAX77960_INLIM_CLK_t INLIM_CLK_;    //input current soft start period between increments of 25mA in uS
-    MAX77960_OTG_ILIM_t OTG_ILIM_;      //OTG current limit
     MAX77960_MINVSYS_2S_t MINVSYS_2S;   //minimum system voltage threshold for 2S mode
     MAX77960_MINVSYS_3S_t MINVSYS_3S;   //minimum system voltage threshold for 3S mode
     MAX77960_REGTEMP_t REGTEMP_;        //junction temperature regulation threshold
     MAX77960_VCHGIN_REG_t VCHGIN_REG_;  //Charger Input Voltage Setting, ignored if AICL enabled
-    bool AICL_enabled;                  //Adaptive Input Current Limit and Input Voltage Regultaion
-    bool JEITA_enabled;                 //JEITA function enabled = 1, disabled = 0
 } MAX77960_CONFIG_t;
 
 /**
- * MAX77960 General config structure
+ * MAX77960 Details structure
  */
 typedef struct{
     MAX77960_CHGIN_DTLS_t CHGIN_det;
     MAX77960_OTG_DTLS_t OTG_det;
     MAX77960_BAT_DTLS_t BAT_det;
+    bool QB_enabled;
     MAX77960_CHG_DTLS_t CHG_det;
     MAX77960_THM_DTLS_t THM_det;
+    bool CHG_enabled;
     MAX77960_CHG_MODE_t mode;           //Smart Power Selector Configurator Mode
-    MAX77960_FAULT_TYPE_t fault_type;   //fault type
 } MAX77960_DETAILS_t;
+
+/**
+ * MAX77960 Details Strings Structure
+ */
+typedef struct{
+    const char *CHGIN_det_s;
+    const char *OTG_det_s;
+    const char *BAT_det_s;
+    const char *QB_enabled_s;
+    const char *CHG_det_s;
+    const char *THM_det_s;
+    const char *CHG_enabled_s;
+    const char *mode_s;
+} MAX77960_DETAILS_STRINGS_t;
 
 /**
  * MAX77960 Stucture
  */
 typedef struct {
 
-    bool _is_init;
-    
-    bool DISQBAT_enabled;       //Qbat disabled = 0, enabled = 1
-    bool BATT_3S_enabled;       //3S mode enabled = 1, disabled = 0
+    uint8_t i2c_port;
 
+    bool _is_init;
+    bool _is_configured;
+    bool _is_charge_configured;
+    
     //status and info
     MAX77960_FSW_DTLS_t FSW;            //Switching frequency of the chip
-    MAX77960_NUM_CELL_DTLS_t NUM_CELL;  //max number of cells supported by the chip
+    MAX77960_NUM_CELL_DTLS_t NUM_CELL;  //max number of cells supported by the chip: 0=2S, 1=3S
+    //TODO: implements flags
     bool is_CHGIN_valid;                //charger input voltage
     bool is_CHGIN_INLIM_reached;        //charger input voltage reached
     bool is_charging;
     bool is_fault;                      //is_fault=1 if fault
-
+    bool DISQBAT_enabled;               //Qbat disabled = 0, enabled = 1
+    
+    MAX77960_CHGPROT_t chgprot_state;
     MAX77960_DETAILS_t details;
+    MAX77960_FAULT_TYPE_t fault_type;   //fault type
 
 } ESP32_MAX77960;
 
 
-void max77960_init(ESP32_MAX77960 * MAX);
-void max77960_delete(ESP32_MAX77960 * MAX);
+void MAX_init(ESP32_MAX77960 * MAX, uint8_t i2c_port);
 
-void max77960_set_chg_conf(ESP32_MAX77960* MAX, MAX77960_CHG_CONFIG_t chg_conf);
-void max77960_set_conf(ESP32_MAX77960* MAX, MAX77960_CONFIG_t conf);
-void max77960_set_3S_mode(ESP32_MAX77960* MAX, bool enabled);
-MAX77960_DETAILS_t max77960_get_details(ESP32_MAX77960* MAX);
+void MAX_set_chg_conf(ESP32_MAX77960* MAX, MAX77960_CHG_CONFIG_t chg_conf);
+void MAX_set_conf(ESP32_MAX77960* MAX, MAX77960_CONFIG_t conf);
+void MAX_set_mode(ESP32_MAX77960* MAX, MAX77960_CHG_MODE_t mode);
+void MAX_set_chg_i2c_mode(ESP32_MAX77960 * MAX);
+MAX77960_DETAILS_STRINGS_t MAX_get_details(ESP32_MAX77960* MAX);
 
-void max77960_charger_protection_unlock(ESP32_MAX77960* MAX);
-void max77960_charger_protection_lock(ESP32_MAX77960* MAX);
-void max77960_software_reset(ESP32_MAX77960* MAX);
+bool MAX_charger_protection_unlock(ESP32_MAX77960* MAX);
+bool MAX_charger_protection_lock(ESP32_MAX77960* MAX);
+
+/*
+The chip has different levels of reset as defined below:
+• Type S: Registers are reset each time when: SYS < VDD (1.8V)
+• Type O: Registers are reset each time when: SYS < VDD or SYS < SYS UVLO or SYS > SYS OVLO or die temp >
+TSHDN or software reset (SW_RST)
+
+Type S registers: all of TOP section, and all of the charger interrupt/details except CHG_INT_MASK are type S.
+
+Type O registers: CHG_INT_MASK and all charger configuration registers are type O.
+*/
+void MAX_software_reset(ESP32_MAX77960* MAX);
+
+//TODO: Interrupt functions, remember to implement the return of the fault type
+
 
 #endif

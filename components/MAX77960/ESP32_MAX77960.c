@@ -5,6 +5,21 @@
 
 static const char* TAG="ESP32_MAX77960";
 
+static const char* ALREADY_INIT="Already initialized";
+static const char* NOT_INIT="Not initialized";
+static const char* NOT_CONF="Not configured";
+static const char* NOT_CHG_CONF="Charge not configured";
+
+/* Definitions of the Black Magic strings */
+#define C(k, v) [v] = #k, 
+const char * const MAX77960_CHGIN_DTLS_name[] = { CHGIN_DTLS_ENUM };
+const char * const MAX77960_OTG_DTLS_name[] = { OTG_DTLS_ENUM };
+const char * const MAX77960_BAT_DTLS_name[] = { BAT_DTLS_ENUM };
+const char * const MAX77960_CHG_DTLS_name[] = { CHG_DTLS_ENUM };
+const char * const MAX77960_THM_DTLS_name[] = { THM_DTLS_ENUM };
+const char * const MAX77960_CHG_MODE_name[] = { CHG_MODE_ENUM };
+#undef C
+
 // ---------------- I2C AUXILIARY FUNCTIONS ----------------
 
 /**
@@ -12,21 +27,9 @@ static const char* TAG="ESP32_MAX77960";
  *  @param  reg
  *  @param  value
  */
-static void write8(uint8_t reg, uint8_t value) {
-  
+static void write8(ESP32_MAX77960* MAX, uint8_t reg, uint8_t value) {
     uint8_t buffer[2] = {reg, value};
-    ESP_ERROR_CHECK(i2c_master_write_to_device(MAX_I2C_PORT, MAX77960_I2C_ADDR, buffer, 2, 1000 / portTICK_PERIOD_MS));
-}
-
-/**
- *  @brief  write a 16 bit value over I2C
- *  @param  reg
- *  @param  value
- */
-static void write16(uint8_t reg, uint16_t value) {
-  
-    uint8_t buffer[3] = {reg, (uint8_t)(value), (uint8_t)(value >> 8)};
-    ESP_ERROR_CHECK(i2c_master_write_to_device(MAX_I2C_PORT, MAX77960_I2C_ADDR, buffer, 3, 1000 / portTICK_PERIOD_MS));
+    ESP_ERROR_CHECK(i2c_master_write_to_device(MAX->i2c_port, MAX77960_I2C_ADDR, buffer, 2, 1000 / portTICK_PERIOD_MS));
 }
 
 /**
@@ -34,23 +37,11 @@ static void write16(uint8_t reg, uint16_t value) {
  *  @param  reg
  *  @return value
  */
-static uint8_t read8(uint8_t reg) {
+static uint8_t read8(ESP32_MAX77960* MAX, uint8_t reg) {
     uint8_t buffer[1] = {reg};
-    ESP_ERROR_CHECK(i2c_master_write_to_device(MAX_I2C_PORT, MAX77960_I2C_ADDR, buffer, 1, 1000 / portTICK_PERIOD_MS));
-    ESP_ERROR_CHECK(i2c_master_read_from_device(MAX_I2C_PORT, MAX77960_I2C_ADDR, buffer, 1, 1000 / portTICK_PERIOD_MS));
+    ESP_ERROR_CHECK(i2c_master_write_to_device(MAX->i2c_port, MAX77960_I2C_ADDR, buffer, 1, 1000 / portTICK_PERIOD_MS));
+    ESP_ERROR_CHECK(i2c_master_read_from_device(MAX->i2c_port, MAX77960_I2C_ADDR, buffer, 1, 1000 / portTICK_PERIOD_MS));
     return buffer[0];
-}
-
-/**
- *  @brief  Reads a 16 bit value over I2C
- *  @param  reg
- *  @return value
- */
-static uint16_t read16(uint8_t reg) {
-    uint8_t buffer[2] = {reg, 0};
-    ESP_ERROR_CHECK(i2c_master_write_to_device(MAX_I2C_PORT, MAX77960_I2C_ADDR, buffer, 1, 1000 / portTICK_PERIOD_MS));
-    ESP_ERROR_CHECK(i2c_master_read_from_device(MAX_I2C_PORT, MAX77960_I2C_ADDR, buffer, 2, 1000 / portTICK_PERIOD_MS));
-    return buffer[0] | (buffer[1] << 8);
 }
 
 /**
@@ -60,10 +51,10 @@ static uint16_t read16(uint8_t reg) {
  *  @param  size number of bytes to read
  *  @return value
  */
-static void read_data(uint8_t reg, uint8_t *data, size_t size) {
+static void read_data(ESP32_MAX77960* MAX, uint8_t reg, uint8_t *data, size_t size) {
     uint8_t buffer[1] = {reg};
-    ESP_ERROR_CHECK(i2c_master_write_to_device(MAX_I2C_PORT, MAX77960_I2C_ADDR, buffer, 1, 1000 / portTICK_PERIOD_MS));
-    ESP_ERROR_CHECK(i2c_master_read_from_device(MAX_I2C_PORT, MAX77960_I2C_ADDR, data, size, 1000 / portTICK_PERIOD_MS));
+    ESP_ERROR_CHECK(i2c_master_write_to_device(MAX->i2c_port, MAX77960_I2C_ADDR, buffer, 1, 1000 / portTICK_PERIOD_MS));
+    ESP_ERROR_CHECK(i2c_master_read_from_device(MAX->i2c_port, MAX77960_I2C_ADDR, data, size, 1000 / portTICK_PERIOD_MS));
 }
 
 /**
@@ -73,22 +64,24 @@ static void read_data(uint8_t reg, uint8_t *data, size_t size) {
  * @param mask mask to apply
  * @param value value to write
  */
-static void writeBits(uint8_t reg, uint8_t mask, uint8_t value) {
-    uint8_t tmp = read8(reg);
+static void writeBits(ESP32_MAX77960* MAX, uint8_t reg, uint8_t mask, uint8_t value) {
+    uint8_t tmp = read8(MAX, reg);
     tmp &= ~mask;
     tmp |= (value & mask);
-    write8(reg, tmp);
+    write8(MAX, reg, tmp);
 }
 
 // ---------------- PERIPHERALS GENERAL INFO GETTERS ----------------
 
 static void max77960_get_number_of_cell(ESP32_MAX77960* MAX){
-    uint8_t value = read8(CHG_DTLS_02_REG);
+    assert(MAX->_is_init==true && NOT_INIT);
+    uint8_t value = read8(MAX, CHG_DTLS_02_REG);
     MAX->NUM_CELL = (value & NUM_CELL_DTLS_MASK);
 }
 
 static void max77960_get_switching_frequency(ESP32_MAX77960* MAX){
-    uint8_t value = read8(CHG_DTLS_02_REG);
+    assert(MAX->_is_init==true && NOT_INIT);
+    uint8_t value = read8(MAX, CHG_DTLS_02_REG);
     MAX->FSW = (value & FSW_DTLS_MASK) >> FSW_DTLS;
 }
 
@@ -97,189 +90,182 @@ static void max77960_get_switching_frequency(ESP32_MAX77960* MAX){
 /**
  *  @brief  Initialize the MAX77960 peripheral
  */
-void max77960_init(ESP32_MAX77960* MAX) {
-    if(MAX->_is_init!=true){
-        max77960_get_number_of_cell(MAX);
-        max77960_get_switching_frequency(MAX);
-        ESP_LOGI(TAG, "MAX77960 initialized: %d cells max, %d Hz switching frequency", MAX->NUM_CELL, MAX->FSW);
-        if(MAX->NUM_CELL==1){
-            ESP_LOGI(TAG, "MAX77960 supports 3S mode but it's disabled by default for safety reasons, you can enable it manually");
-        }
+void MAX_init(ESP32_MAX77960* MAX, uint8_t i2c_port) {
 
-        //Set I2C configuration
-        MAX->conf.mode = I2C_MODE_MASTER;
-        MAX->conf.sda_io_num = MAX_SDA_PIN;
-        MAX->conf.scl_io_num = MAX_SCL_PIN;
-        MAX->conf.sda_pullup_en = GPIO_PULLUP_DISABLE;     //disable if you have external pullup
-        MAX->conf.scl_pullup_en = GPIO_PULLUP_DISABLE;
-        MAX->conf.master.clk_speed = 400000;               //I2C Full Speed
-        ESP_ERROR_CHECK(i2c_param_config(MAX_I2C_PORT, &(MAX->conf))); //set I2C Config
-        ESP_ERROR_CHECK(i2c_driver_install(MAX_I2C_PORT, I2C_MODE_MASTER, 0, 0, 0));
+    assert(MAX->_is_init!=true && ALREADY_INIT);
+    MAX->i2c_port = i2c_port;
 
-        MAX->_is_init=true;
-    }
-}
+    MAX->_is_init=true;
 
-void max77960_delete(ESP32_MAX77960 * MAX){
-    if(MAX->_is_init==true){
-        i2c_driver_delete(MAX_I2C_PORT);
-        MAX->_is_init=false;
+    max77960_get_number_of_cell(MAX);
+    max77960_get_switching_frequency(MAX);
+    ESP_LOGI(TAG, "MAX77960 found: %d cells max, %d KHz switching frequency", MAX->NUM_CELL ? 3 : 2, MAX->FSW ? 600 : 1200);
+    if(MAX->NUM_CELL==1){
+        ESP_LOGI(TAG, "MAX77960 is set in 3S mode");
     }
     else{
-        ESP_LOGE(TAG, "MAX77960 is not initialized");
+        ESP_LOGI(TAG, "MAX77960 is set in 2S mode");
     }
 }
 
-MAX77960_DETAILS_t max77960_get_details(ESP32_MAX77960* MAX){
+MAX77960_DETAILS_STRINGS_t MAX_get_details(ESP32_MAX77960* MAX){
+
+    assert(MAX->_is_init==true && NOT_INIT);
+    uint8_t buf[4];
+    MAX77960_DETAILS_STRINGS_t details_strings={0};
+
+    read_data(MAX, CHG_DTLS_00_REG, buf, 4);
+
+    MAX->details.CHGIN_det=(buf[0] & CHGIN_DTLS_MASK) >> CHGIN_DTLS;
+    MAX->details.OTG_det=(buf[0] & OTG_DTLS_MASK) >> OTG_DTLS;
+    MAX->details.QB_enabled=(buf[0] & QB_DTLS_MASK) >> QB_DTLS;
+    MAX->details.BAT_det=(buf[1] & BAT_DTLS_MASK) >> BAT_DTLS;
+    MAX->details.CHG_det=(buf[1] & CHG_DTLS_MASK) >> CHG_DTLS;
+    MAX->details.THM_det=(buf[2] & THM_DTLS_MASK) >> THM_DTLS;
+    MAX->details.CHG_enabled=(buf[2] & APP_MODE_DTLS_MASK) >> APP_MODE_DTLS;
+    MAX->details.mode=(buf[3] & MODE_MASK) >> MODE;
+
+    details_strings.CHGIN_det_s=MAX77960_CHGIN_DTLS_name[MAX->details.CHGIN_det];
+    details_strings.OTG_det_s=MAX77960_OTG_DTLS_name[MAX->details.OTG_det];
+    details_strings.QB_enabled_s=MAX->details.QB_enabled ? "On" : "Off";
+    details_strings.BAT_det_s=MAX77960_BAT_DTLS_name[MAX->details.BAT_det];
+    details_strings.CHG_det_s=MAX77960_CHG_DTLS_name[MAX->details.CHG_det];
+    details_strings.THM_det_s=MAX77960_THM_DTLS_name[MAX->details.THM_det];
+    details_strings.CHG_enabled_s=MAX->details.CHG_enabled ? "Enabled" : "Disabled";
+    details_strings.mode_s=MAX77960_CHG_MODE_name[MAX->details.mode];
+    return details_strings;
+}
+
+void MAX_set_chg_conf(ESP32_MAX77960* MAX, MAX77960_CHG_CONFIG_t chg_conf){
+    assert(MAX->_is_init==true && NOT_INIT);
+    //set INLIM
+    writeBits(MAX, CHG_CNFG_08_REG, CHGIN_ILIM_MASK, chg_conf.INLIM << CHGIN_ILIM);
+    //set INLIM_CLK and OTG_INLIM
+    writeBits(MAX, CHG_CNFG_09_REG, INLIM_CLK_MASK || OTG_ILIM_MASK, 
+                (chg_conf.INLIM_CLK_ << INLIM_CLK) || (chg_conf.OTG_ILIM_ << OTG_ILIM));
+    //set ISET
+    writeBits(MAX, CHG_CNFG_02_REG, CHGCC_MASK, chg_conf.ISET << CHGCC);
+    //set ITO and Top Off timer
+    writeBits(MAX, CHG_CNFG_03_REG, TO_ITH_MASK || TO_TIME_MASK, 
+                (chg_conf.ITO << TO_ITH) || (chg_conf.TO_timer << TO_TIME));
+    //set VSET
+    if(MAX->NUM_CELL==1){
+        writeBits(MAX, CHG_CNFG_04_REG, CHG_CV_PRM_MASK, chg_conf.VSET_3S << CHG_CV_PRM);
+    }
+    else{
+        writeBits(MAX, CHG_CNFG_04_REG, CHG_CV_PRM_MASK, chg_conf.VSET_2S << CHG_CV_PRM);
+    }
+    //set ITRICKLE
+    writeBits(MAX, CHG_CNFG_05_REG, ITRICKLE_MASK, chg_conf.I_TRICKLE << ITRICKLE);
+    //set Fast charge timer and CHG_RST
+    writeBits(MAX, CHG_CNFG_01_REG, FCHGTIME_MASK || CHG_RSTRT_MASK, 
+                (chg_conf.FC_timer << FCHGTIME) || (chg_conf.CHG_RST << CHG_RSTRT));
+    //set JEITA 
+    writeBits(MAX, CHG_CNFG_07_REG, JEITA_EN_MASK, chg_conf.JEITA_enabled << JEITA_EN);
+
+    MAX->_is_charge_configured=true;
+}
+
+void MAX_set_conf(ESP32_MAX77960* MAX, MAX77960_CONFIG_t conf){
+    assert(MAX->_is_init==true && NOT_INIT);
+    //set B2SOVRC
+    writeBits(MAX, CHG_CNFG_05_REG, B2SOVRC_MASK, conf.B2SOVRC_ << B2SOVRC);
+    //set MINVSYS
+    if(MAX->NUM_CELL==1){
+        writeBits(MAX, CHG_CNFG_09_REG, MINVSYS_MASK, conf.MINVSYS_3S << MINVSYS);
+    }
+    else{
+        writeBits(MAX, CHG_CNFG_09_REG, MINVSYS_MASK, conf.MINVSYS_2S << MINVSYS);
+    }
+    //set REGTEMP
+    writeBits(MAX, CHG_CNFG_07_REG, REGTEMP_MASK, conf.REGTEMP_ << REGTEMP);
+    //set VCHGIN_REG
+    writeBits(MAX, CHG_CNFG_10_REG, VCHGIN_REG_MASK, conf.VCHGIN_REG_ << VCHGIN_REG);
+
+    MAX->_is_configured=true;
+}
+
+/**
+ * @brief Set I2C mode enabled and start charge with value programmed by 
+ * registers, can't be disabled, must restart the MAX77960
+ * 
+ * @param MAX Pointer to MAX77960 structure
+ */
+void MAX_set_chg_i2c_mode(ESP32_MAX77960 * MAX){
+    assert(MAX->_is_init==true && NOT_INIT);
+    assert(MAX->_is_charge_configured==true && NOT_CHG_CONF);
+    assert(MAX->_is_configured==true && NOT_CONF);
+
+    writeBits(MAX, CHG_CNFG_00_REG, COMM_MODE_MASK, 0x01 << COMM_MODE);
+}
+
+//TODO: implements AICL
+//TODO: interrupts?
+//TODO: unlock charge protection only if it has been configured
+
+
+/**
+ *	@brief Unlock charger protection, return true if successful
+ */
+bool MAX_charger_protection_unlock(ESP32_MAX77960* MAX)
+{   
+    assert(MAX->_is_init==true && NOT_INIT);
+
+    const uint8_t MAX_TRY = 10;
+    uint8_t ntry = 0;
+    uint8_t reg_data = 0;
+
+    while (1) {
+        writeBits(MAX, CHG_CNFG_06_REG, CHGPROT_MASK, MAX77960_CHGPROT_UNLOCKED << CHGPROT);
+        reg_data=read8(MAX, CHG_CNFG_06_REG);
+        MAX->chgprot_state = (reg_data & CHGPROT_MASK) >> CHGPROT;
+        if (MAX->chgprot_state == MAX77960_CHGPROT_UNLOCKED)
+            return true;
+        else if (++ntry > MAX_TRY)
+            return false;
+    }
+}
+
+/**
+ *	@brief Lock charger protection, return true if successful
+ */
+bool MAX_charger_protection_lock(ESP32_MAX77960* MAX)
+{   
+    assert(MAX->_is_init==true && NOT_INIT);
+    const uint8_t MAX_TRY = 10;
+    uint8_t ntry = 0;
+    uint8_t reg_data = 0;
+
+    while (1) {
+        writeBits(MAX, CHG_CNFG_06_REG, CHGPROT_MASK, MAX77960_CHGPROT_LOCKED_0 << CHGPROT);
+        reg_data=read8(MAX, CHG_CNFG_06_REG);
+        MAX->chgprot_state = (reg_data & CHGPROT_MASK) >> CHGPROT;
+        if (MAX->chgprot_state == MAX77960_CHGPROT_LOCKED_0)
+            return true;
+        else if (++ntry > MAX_TRY)
+            return false;
+    }
+}
+
+void MAX_set_mode(ESP32_MAX77960* MAX, MAX77960_CHG_MODE_t mode){
     
+    assert(MAX->_is_init==true && NOT_INIT);
+    assert(MAX->_is_charge_configured==true && NOT_CHG_CONF);
+    assert(MAX->_is_configured==true && NOT_CONF);
+
+    writeBits(MAX, CHG_CNFG_00_REG, MODE_MASK, mode << MODE);
 }
 
-void max77960_set_3S_mode(ESP32_MAX77960* MAX, bool enabled){
-    if(MAX->_is_init=true){
-        if(MAX->NUM_CELL==1){
-            MAX->BATT_3S_enabled=enabled;
-        }
-        else{
-            ESP_LOGE(TAG, "MAX77960 doesn't support 3S mode");
-        }
-    }
+/*
+ *	Perform software reset to type O registers.
+ */
+void MAX_software_reset(ESP32_MAX77960* MAX){   
+    assert(MAX->_is_init==true && NOT_INIT);
+    write8(MAX, SWRST_REG, SWRST_COMMAND << SWRST);
+    //TODO: is this right? Does reset also lock charger protection?
+    MAX->_is_charge_configured=false;
+    MAX->_is_configured=false;
 }
-
-void max77960_set_chg_conf(ESP32_MAX77960* MAX, MAX77960_CHG_CONFIG_t chg_conf){
-
-}
-
-void max77960_set_conf(ESP32_MAX77960* MAX, MAX77960_CONFIG_t conf){
-
-}
-
-
-// /*
-//  *	Unlock charger protection.
-//  */
-// MAX77960_Status_t max77960_charger_protection_unlock()
-// {
-// 	const uint8_t MAX_TRY = 10;
-// 	uint8_t ntry = 0;
-// 	uint8_t reg_data = 0;
-// 	uint8_t chgprot_state = 0;
-
-// 	while (1) {
-// 		reg_write(CHG_CNFG_06_REG, CHGPROT_UNLOCK << CHGPROT);
-// 		reg_read(CHG_CNFG_06_REG, &reg_data);
-// 		chgprot_state = (reg_data & CHGPROT_MASK) >> CHGPROT;
-// 		if (chgprot_state == CHGPROT_UNLOCK)
-// 			return MAX77960_OK;
-// 		else if (++ntry > MAX_TRY)
-// 			return MAX77960_ERROR;
-// 	}
-// }
-
-// /*
-//  *	Lock charger's registers.
-//  */
-// MAX77960_Status_t max77960_charger_protection_lock()
-// {
-// 	const uint8_t MAX_TRY = 10;
-// 	uint8_t ntry = 0;
-// 	uint8_t reg_data = 0;
-// 	uint8_t chgprot_state = 0;
-
-// 	while (1) {
-// 		reg_write(CHG_CNFG_06_REG, CHGPROT_LOCK << CHGPROT);
-// 		reg_read(CHG_CNFG_06_REG, &reg_data);
-// 		chgprot_state = (reg_data & CHGPROT_MASK) >> CHGPROT;
-// 		if (chgprot_state == CHGPROT_LOCK)
-// 			return MAX77960_OK;
-// 		else if (++ntry > MAX_TRY)
-// 			return MAX77960_ERROR;
-// 	}
-// }
-
-// /*
-//  *	Perform software reset to type O registers.
-//  */
-// MAX77960_Status_t max77960_software_reset()
-// {
-// 	if (reg_write(SWRST, SWRST_COMMAND << SWRST) != MAX77960_OK)
-// 		return MAX77960_ERROR;
-// 	return MAX77960_OK;
-// }
-
-// ------------- others, CHECK -----------------
-
-// /*
-//  * Copyright (c) 2019 Maxim Integrated Products, Inc.
-//  * Author: Maxim Integrated <opensource@maximintegrated.com>
-//  *
-//  * This program is free software; you can redistribute it and/or modify
-//  * it under the terms of the GNU General Public License version 2 as
-//  * published by the Free Software Foundation.
-//  */
-
-// static void max77960_charger_initialize(struct max77960_charger_data *chg_data);
-// static int max77960_charger_get_health_state(struct max77960_charger_data
-// 	*chg_data);
-
-// static bool max77960_charger_unlock(struct max77960_charger_data *chg_data)
-// {
-// 	struct regmap *regmap = chg_data->regmap;
-// 	u8 reg_data;
-// 	u8 chgprot;
-// 	int retry_cnt = 0;
-// 	bool need_init = false;
-
-// 	do {
-// 		max77960_read_reg(regmap, MAX77960_CHG_CNFG_06, &reg_data);
-// 		chgprot = ((reg_data & 0x0C) >> 2);
-// 		if (chgprot != 0x03) {
-// 			pr_info("%s: Unlock err, chgprot(0x%x), retry(%d)\n",
-// 				__func__,	chgprot, retry_cnt);
-// 			max77960_write_reg(regmap, MAX77960_CHG_CNFG_06,
-// 				(0x03 << 2));
-// 			need_init = true;
-// 			msleep(20);
-// 		} else {
-// 			pr_info("%s: Unlock success, chgprot(0x%x)\n",
-// 				__func__, chgprot);
-// 			break;
-// 		}
-// 	} while ((chgprot != 0x03) && (++retry_cnt < 10));
-
-// 	return need_init;
-// }
-
-// static void max77960_charger_check_unlock_state(struct max77960_charger_data
-// 	*chg_data)
-// {
-// 	bool need_reg_init;
-
-// 	need_reg_init = max77960_charger_unlock(chg_data);
-// 	if (need_reg_init) {
-// 		pr_info("%s: charger locked state, reg init\n", __func__);
-// 		max77960_charger_initialize(chg_data);
-// 	}
-// }
-
-// static void max77960_charger_set_state(struct max77960_charger_data
-// 	*chg_data, int en)
-// {
-// 	struct regmap *regmap = chg_data->regmap;
-
-// 	u8 reg_data;
-
-// 	max77960_read_reg(regmap, MAX77960_CHG_CNFG_00, &reg_data);
-
-// 	if (en)
-// 		reg_data |= MAX77960_MODE_CHGR;
-// 	else
-// 		reg_data &= ~MAX77960_MODE_CHGR;
-
-// 	pr_info("%s: CHG_CNFG_00(0x%02x)\n", __func__, reg_data);
-
-// 	max77960_write_reg(regmap, MAX77960_CHG_CNFG_00, reg_data);
-// }
-
 
 // static bool max77818_charger_present_input(struct max77960_charger_data
 // 	*chg_data)
@@ -307,37 +293,6 @@ void max77960_set_conf(ESP32_MAX77960* MAX, MAX77960_CONFIG_t conf){
 // 			return false;
 // }
 
-// static void max77960_charger_set_input_current(struct max77960_charger_data
-// 	*chg_data, int input_current)
-// {
-// 	struct regmap *regmap = chg_data->regmap;
-// 	u8 reg_data = 0;
-// 	int current_limit_step;
-
-// 	current_limit_step = chg_data->input_curr_limit_step;
-// 	/* unit mA */
-// 	if (!input_current) {
-// 		reg_data = 0;
-// 	} else {
-// 		if (input_current % current_limit_step)
-// 	    goto err_value;
-// 		if (input_current <= 100)
-//       reg_data = 0;
-// 	  else if (input_current <= 6300) /* 6300mA */
-// 			reg_data |= ((input_current / current_limit_step)+1);
-//     else
-//       reg_data |= 0x7F;
-//   }
-
-// 	pr_info("max77960 set input current: reg_data(0x%02x), current(%dmA)\n",
-// 		reg_data, input_current);
-
-// 	max77960_write_reg(regmap, MAX77960_CHG_CNFG_08, reg_data);
-// err_value:
-// 	pr_info("max77960 set input current: %dmA\n", input_current);
-// 	pr_info("max77960 not match the register.\n");
-// }
-
 // static int max77960_charger_get_input_current(struct max77960_charger_data
 // 	*chg_data)
 // {
@@ -357,38 +312,6 @@ void max77960_set_conf(ESP32_MAX77960* MAX, MAX77960_CONFIG_t conf){
 // 	  reg_data, get_current);
 
 // 	return get_current;
-// }
-
-// static void max77960_charger_set_charge_current(struct max77960_charger_data
-// 	*chg_data, int cur)
-// {
-// 	struct regmap *regmap = chg_data->regmap;
-
-// 	u8 reg_data = 0;
-
-// 	max77960_read_reg(regmap, MAX77960_CHG_CNFG_02, &reg_data);
-// 	reg_data &= ~MAX77960_CHG_CC;
-
-// 	if (!cur) {
-// 		/* No charger */
-// 		max77960_write_reg(regmap, MAX77960_CHG_CNFG_02, reg_data);
-// 	} else {
-// 		if (cur % 50)
-// 	    goto err_value;
-// 		if (cur > 450)
-//       reg_data |= ((cur / chg_data->charging_curr_step) + 3);
-// 		else
-//       reg_data |= ((cur / 50) - 2);
-
-// 		max77960_write_reg(regmap, MAX77960_CHG_CNFG_02, reg_data);
-// 	}
-
-// 	pr_info("max77960 set charge current: reg_data(0x%02x), charge(%d)\n",
-// 			reg_data, cur);
-
-// err_value:
-// 	pr_info("max77960 set charge current: %dmA\n", cur);
-// 	pr_info("max77960 not match the register.\n");
 // }
 
 // static int max77960_charger_get_charge_current(struct max77960_charger_data
@@ -411,35 +334,6 @@ void max77960_set_conf(ESP32_MAX77960* MAX, MAX77960_CONFIG_t conf){
 // 	pr_info("max77960 get charge current: reg(0x%02x),", reg_data);
 // 	pr_info("max77960 get charge current: %dmA\n", get_current);
 // 	return get_current;
-// }
-
-// static void max77960_charger_set_topoff_current(struct max77960_charger_data
-// 	*chg_data, int cur, int time)
-// {
-// 	struct regmap *regmap = chg_data->regmap;
-
-// 	u8 reg_data;
-
-// 	if (cur >= 600)
-// 		reg_data = 0x07;
-// 	else if (cur >= 500)
-// 		reg_data = 0x04;
-// 	else if (cur >= 400)
-// 		reg_data = 0x03;
-// 	else if (cur >= 300)
-// 		reg_data = 0x02;
-// 	else if (cur >= 200)
-// 		reg_data = 0x01;
-// 	else
-// 		reg_data = 0x00;
-
-//   /* topoff timer setting*/
-//   time = time / 10;
-//   reg_data |= (time << 3);
-// 	pr_info("max77960 set topoff cur: reg_data(0x%02x), topoff current(%d)\n",
-// 		reg_data, cur);
-
-// 	max77960_write_reg(regmap, MAX77960_CHG_CNFG_03, reg_data);
 // }
 
 // static int max77960_charger_get_charger_state(struct max77960_charger_data
@@ -597,42 +491,6 @@ void max77960_set_conf(ESP32_MAX77960* MAX, MAX77960_CONFIG_t conf){
 // 				val->intval = POWER_SUPPLY_CHARGE_TYPE_NONE;
 // 			else
 // 				val->intval = POWER_SUPPLY_CHARGE_TYPE_FAST;
-// 		break;
-// 		default:
-// 			return -EINVAL;
-// 	}
-
-// 	return 0;
-// }
-
-// static int max77960_charger_set_property(struct power_supply *psy,
-// 		enum power_supply_property psp,
-// 		const union power_supply_propval *val)
-// {
-// 	struct max77960_charger_data *chg_data = power_supply_get_drvdata(psy);
-
-// 	switch (psp) {
-// 		case POWER_SUPPLY_PROP_STATUS:
-// 			chg_data->status = val->intval;
-// 			break;
-// 			/* val->intval : type */
-// 		case POWER_SUPPLY_PROP_ONLINE:
-// 			/* check and unlock */
-// 			max77960_charger_check_unlock_state(chg_data);
-// 			max77960_charger_set_state(chg_data, val->intval);
-//            /* apply charge current */
-//             max77960_charger_set_input_current(chg_data,
-//                     chg_data->fast_charge_current);  /* mA */
-// 		break;
-// 		case POWER_SUPPLY_PROP_CURRENT_NOW:
-// 			max77960_charger_set_charge_current(chg_data,
-// 				val->intval);	/* mA */
-//             chg_data->fast_charge_current = val->intval;	/* mA */
-// 			break;
-// 		case POWER_SUPPLY_PROP_CURRENT_MAX:
-// 			max77960_charger_set_input_current(chg_data,
-// 				val->intval);	/* mA */
-// 		chg_data->input_current_limit = val->intval;	/* mA */
 // 		break;
 // 		default:
 // 			return -EINVAL;
