@@ -244,6 +244,7 @@
 
 /* CHGIN DTLS */
 #define CHGIN_DTLS_ENUM C(MAX77960_CHGIN_DTLS_LESS_UVLO, 0x0)\
+                        C(MAX77960_CHGIN_DTLS_RESERVED, 0x1)\
                         C(MAX77960_CHGIN_DTLS_MORE_OVLO, 0x2)\
                         C(MAX77960_CHGIN_DTLS_VALID, 0x3)
 #define C(k, v) k = v,
@@ -292,10 +293,14 @@ extern const char * const MAX77960_BAT_DTLS_name[];
                         C(MAX77960_CHG_DTLS_TIMER_FAULT, 0x6)\
                         C(MAX77960_CHG_DTLS_QBAT_DISABLED, 0x7)\
                         C(MAX77960_CHG_DTLS_IN_INVALID_CHG_DISABLED, 0x8)\
+                        C(MAX77960_CHG_DTLS_RESERVED, 0x9)\
                         C(MAX77960_CHG_DTLS_OVERTEMP, 0xA)\
                         C(MAX77960_CHG_DTLS_WDT_EXPIRED, 0xB)\
                         C(MAX77960_CHG_DTLS_JEITA_CONDITION, 0xC)\
-                        C(MAX77960_CHG_DTLS_BAT_REMOVED, 0xD)
+                        C(MAX77960_CHG_DTLS_BAT_REMOVED, 0xD)\
+                        C(MAX77960_CHG_DTLS_RESERVED1, 0xE)\
+                        C(MAX77960_CHG_DTLS_RESERVED2, 0xF)
+
 #define C(k, v) k = v,
 typedef enum { CHG_DTLS_ENUM } MAX77960_CHG_DTLS_t;
 #undef C
@@ -313,7 +318,8 @@ extern const char * const MAX77960_CHG_DTLS_name[];
                         C(MAX77960_THM_DTLS_WARM, 0x3)\
                         C(MAX77960_THM_DTLS_TOO_HOT, 0x4)\
                         C(MAX77960_THM_DTLS_REMOVED, 0x5)\
-                        C(MAX77960_THM_DTLS_THM_DISABLED, 0x6)
+                        C(MAX77960_THM_DTLS_THM_DISABLED, 0x6)\
+                        C(MAX77960_THM_RESERVED, 0x7)
 #define C(k, v) k = v,
 typedef enum { THM_DTLS_ENUM } MAX77960_THM_DTLS_t;
 #undef C   
@@ -322,7 +328,9 @@ extern const char * const MAX77960_THM_DTLS_name[];
 
 typedef enum {
 	MAX77960_FSW_DTLS_600_KHZ       = 0x0,
-    MAX77960_FSW_DTLS_1200_KHZ      = 0x1
+    MAX77960_FSW_DTLS_1200_KHZ      = 0x1,
+    MAX77960_FSW_DTLS_RESERVED      = 0x2,
+    MAX77960_FSW_DTLS_RESERVED1     = 0x3
 } MAX77960_FSW_DTLS_t;
 
 typedef enum {
@@ -343,7 +351,14 @@ typedef enum {
                         C(MAX77960_MODE_CHG_ON_OTG_OFF_DCDC_ON_0, 0x5)\
                         C(MAX77960_MODE_CHG_ON_OTG_OFF_DCDC_ON_1, 0x6)\
                         C(MAX77960_MODE_CHG_ON_OTG_OFF_DCDC_ON_2, 0x7)\
-                        C(MAX77960_MODE_CHG_OFF_OTG_ON_DCDC_OFF, 0xA)
+                        C(MAX77960_MODE_RESERVED, 0x8)\
+                        C(MAX77960_MODE_RESERVED1, 0x9)\
+                        C(MAX77960_MODE_CHG_OFF_OTG_ON_DCDC_OFF, 0xA)\
+                        C(MAX77960_MODE_RESERVED2, 0xB)\
+                        C(MAX77960_MODE_RESERVED3, 0xC)\
+                        C(MAX77960_MODE_RESERVED4, 0xD)\
+                        C(MAX77960_MODE_RESERVED5, 0xE)\
+                        C(MAX77960_MODE_RESERVED6, 0xF)
 #define C(k, v) k = v,
 typedef enum { CHG_MODE_ENUM } MAX77960_CHG_MODE_t;
 #undef C
